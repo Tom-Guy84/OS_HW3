@@ -141,7 +141,6 @@ int main(int argc, char *argv[])
                         
                         remove_queue(waiting_q, fds[rnd_value]);
                         Close(fds[rnd_value]);
-                        printf("popped: %d\n", rnd_value);
                         fds[rnd_value] = -1;
                     }
                     free(fds);
