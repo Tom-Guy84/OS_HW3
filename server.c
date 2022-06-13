@@ -80,6 +80,9 @@ int main(int argc, char *argv[])
    
     listenfd = Open_listenfd(port);
     struct timeval t;
+
+    srand(time(NULL)); // init random seed
+
     while (1) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *) &clientlen);
@@ -111,33 +114,34 @@ int main(int argc, char *argv[])
             }
             else if(strcmp(flag, "random") == 0)
             {
-                //We have 'queue_size' proccess, drop 30% of it - rounded up
-
-                int drop = queues_size * 0.3;
-                if(queues_size % 10 != 0) drop++;
-                if (drop >= get_size_queue(waiting_q))
+                int waiting_size = get_size_queue(waiting_q);
+                int drop = waiting_size * 0.3 + ((waiting_size % 10 == 0) ? 0 : 1); //ceil
+                
+                if (drop == 0) // don't have anyone to drop, hence need to drop the new request
                 {
-                    int flag_dropped = 0;
-                    while(pop_queue(waiting_q) != -1)
-                    { flag_dropped = 1; }
-
-                    if(!flag_dropped)
+                    Close(connfd);
+                    pthread_mutex_unlock(&m);
+                    continue;
+                }
+                if (drop == waiting_size) // have to drop the whole waiting queue
+                {
+					int popped_fd = 0;
+                    while((popped_fd = pop_queue(waiting_q)) != -1)
                     {
-                        Close(connfd);
-                        pthread_mutex_unlock(&m);
-                        continue; //Todo, if no one is in waiting queue - drop the new fd?
-                    }
+						Close(popped_fd);
+				    }
                 }
                 else
                 {
                     int* fds = get_fds_queue(waiting_q);
                     for(int i = 0; i < drop; i++)
                     {
-                        int rnd_value = rand() % get_size_queue(waiting_q);
-                        if(fds[rnd_value] == -1) {i--; continue;}
+                        int rnd_value = rand() % waiting_size; // waiting_size because array's size doesn't change..
+                        if(fds[rnd_value] == -1) {i--; continue;} // we already deleted that one
                         
                         remove_queue(waiting_q, fds[rnd_value]);
                         Close(fds[rnd_value]);
+                        printf("popped: %d\n", rnd_value);
                         fds[rnd_value] = -1;
                     }
                     free(fds);
@@ -184,7 +188,6 @@ void* thread_function(void* arg)
 
         pop_queue(waiting_q);
         push_queue(working_q, p_fd, arrival, start_disp);
-        pthread_mutex_unlock(&m);
 
         int i = 0;
         pthread_t c_id = pthread_self();
@@ -195,6 +198,8 @@ void* thread_function(void* arg)
         }
 
         double temp_arrival = find_arrival_queue(working_q, p_fd);
+
+        pthread_mutex_unlock(&m);
 
         int res = requestHandle(p_fd, temp_arrival, start_disp-temp_arrival, i, actual_threads[i].req, 
                                 actual_threads[i].req_s, actual_threads[i].req_d);
