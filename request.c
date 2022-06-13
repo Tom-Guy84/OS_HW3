@@ -5,7 +5,17 @@
 #include "segel.h"
 #include "request.h"
 
-void requestStatistics(int fd, double a, double dma, int t_id, int req, int req_s, int req_d);
+void requestStatistics(char* buf, int fd, double a, double dma, int t_id, int req, int req_s, int req_d)
+{
+   sprintf(buf, "%sStat-Req-Arrival:: %lf\r\n", buf, a);
+   sprintf(buf, "%sStat-Req-Dispatch:: %lf\r\n", buf, dma);
+   sprintf(buf, "%sStat-Thread-Id:: %d\r\n", buf, t_id);
+   sprintf(buf, "%sStat-Thread-Count:: %d\r\n", buf, req);
+   sprintf(buf, "%sStat-Thread-Static:: %d\r\n", buf, req_s);
+   sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n", buf, req_d);
+
+   Rio_writen(fd, buf, strlen(buf));
+}
 
 // requestError(      fd,    filename,        "404",    "Not found", "OS-HW3 Server could not find this file");
 void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg, 
@@ -22,18 +32,15 @@ void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longm
 
    // Write out the header information for this response
    sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
-   Rio_writen(fd, buf, strlen(buf));
+
+   sprintf(buf, "%sContent-Type: text/html\r\n",buf);
+
+   sprintf(buf, "%sContent-Length: %lu\r\n", buf, strlen(body));
+
    printf("%s", buf);
 
-   sprintf(buf, "Content-Type: text/html\r\n");
-   Rio_writen(fd, buf, strlen(buf));
-   printf("%s", buf);
-
-   sprintf(buf, "Content-Length: %lu\r\n\r\n", strlen(body));
-   Rio_writen(fd, buf, strlen(buf));
-   printf("%s", buf);
-
-   requestStatistics(fd, a, dma, t_id, req, req_s, req_d);
+   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d);
+   
    // Write out the content
    Rio_writen(fd, body, strlen(body));
    printf("%s", body);
@@ -115,9 +122,7 @@ void requestServeDynamic(int fd, char *filename, char *cgiargs,
    sprintf(buf, "HTTP/1.0 200 OK\r\n");
    sprintf(buf, "%sServer: OS-HW3 Web Server\r\n", buf);
 
-   Rio_writen(fd, buf, strlen(buf));
-
-   requestStatistics(fd, a, dma, t_id, req, req_s, req_d);
+   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d);
    
    if (Fork() == 0) {
       /* Child process */
@@ -146,14 +151,12 @@ void requestServeStatic(int fd, char *filename, int filesize,
    Close(srcfd);
 
    // put together response
-   sprintf(buf, "HTTP/1.0 200 OK\r\n");
+   sprintf(buf, "%sHTTP/1.0 200 OK\r\n", buf);
    sprintf(buf, "%sServer: OS-HW3 Web Server\r\n", buf);
    sprintf(buf, "%sContent-Length: %d\r\n", buf, filesize);
-   sprintf(buf, "%sContent-Type: %s\r\n\r\n", buf, filetype);
+   sprintf(buf, "%sContent-Type: %s\r\n", buf, filetype);
 
-   Rio_writen(fd, buf, strlen(buf));
-
-   requestStatistics(fd, a, dma, t_id, req, req_s, req_d);
+   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d);
 
    //  Writes out to the client socket the memory-mapped file 
    Rio_writen(fd, srcp, filesize);
@@ -161,18 +164,6 @@ void requestServeStatic(int fd, char *filename, int filesize,
 
 }
 
-void requestStatistics(int fd, double a, double dma, int t_id, int req, int req_s, int req_d)
-{
-   char buf[MAXLINE];
-   sprintf(buf, "Stat-Req-Arrival:: %lf\r\n", a);
-   sprintf(buf, "%sStat-Req-Dispatch:: %lf\r\n", buf, dma);
-   sprintf(buf, "%sStat-Thread-Id:: %d\r\n", buf, t_id);
-   sprintf(buf, "%sStat-Thread-Count:: %d\r\n", buf, req);
-   sprintf(buf, "%sStat-Thread-Static:: %d\r\n", buf, req_s);
-   sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n", buf, req_d);
-
-   Rio_writen(fd, buf, strlen(buf));
-}
 
 // handle a request
 int requestHandle(int fd, double a, double dma, int t_id, int req, int req_s, int req_d)
