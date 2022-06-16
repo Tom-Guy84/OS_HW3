@@ -11,8 +11,6 @@
 // Most of the work is done within routines written in request.c
 //
 
-#define NOT_DISPATCHED -1
-
 Queue waiting_q = NULL;
 Queue working_q = NULL;
 
@@ -89,13 +87,6 @@ int main(int argc, char *argv[])
         gettimeofday(&t, NULL);
         //TODO ERROR OF TIME
 
-        double arrival = (double) ((double)t.tv_sec + (double)t.tv_usec / 1e6); //milliseconds
-
-        // 
-        // HW3: In general, don't handle the request in the main thread.
-        // Save the relevant info in a buffer and have one of the worker threads 
-        // do the work. 
-        // 
         pthread_mutex_lock(&m);
         if(get_size_queue(working_q) + get_size_queue(waiting_q) >= queues_size)
         {
@@ -128,8 +119,8 @@ int main(int argc, char *argv[])
 					int popped_fd = 0;
                     while((popped_fd = pop_queue(waiting_q)) != -1)
                     {
-						Close(popped_fd);
-				    }
+	         	Close(popped_fd);
+                    }
                 }
                 else
                 {
@@ -159,7 +150,7 @@ int main(int argc, char *argv[])
                 Close(p_fd);
             }
         }     
-        push_queue(waiting_q, connfd, arrival, NOT_DISPATCHED);
+        push_queue(waiting_q, connfd, t);
         pthread_cond_signal(&c); 
 
         pthread_mutex_unlock(&m);
@@ -180,13 +171,14 @@ void* thread_function(void* arg)
         struct timeval t;
         gettimeofday(&t, NULL);
 
-        double start_disp = (double) ((double)t.tv_sec  + (double)t.tv_usec / 1e6); //milliseconds
-
         int p_fd = head_queue(waiting_q);
-        double arrival = find_arrival_queue(waiting_q, p_fd); 
+        struct timeval arrival = find_arrival_queue(waiting_q, p_fd); 
 
+        struct timeval diff_disp;
+        timersub(&t, &arrival, &diff_disp);
+
+        push_queue(working_q, p_fd, arrival);
         pop_queue(waiting_q);
-        push_queue(working_q, p_fd, arrival, start_disp);
 
         int i = 0;
         pthread_t c_id = pthread_self();
@@ -196,13 +188,15 @@ void* thread_function(void* arg)
                 break;
         }
 
-        double temp_arrival = find_arrival_queue(working_q, p_fd);
+        struct timeval temp_arrival = find_arrival_queue(working_q, p_fd);
 
         pthread_mutex_unlock(&m);
 
-        int res = requestHandle(p_fd, temp_arrival, start_disp-temp_arrival, i, actual_threads[i].req, 
+        int res = requestHandle(p_fd, temp_arrival, diff_disp, i, actual_threads[i].req, 
                                 actual_threads[i].req_s, actual_threads[i].req_d);
+        Close(p_fd); 
 
+	pthread_mutex_lock(&m);
         actual_threads[i].req++;
         if(res != ERROR_REQ)
         {
@@ -216,10 +210,10 @@ void* thread_function(void* arg)
             }
         }
 
-        pthread_mutex_lock(&m);
+        
         remove_queue(working_q, p_fd);
         pthread_cond_signal(&limit_c);
         pthread_mutex_unlock(&m);
-        Close(p_fd);    
+           
     }
 }

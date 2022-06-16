@@ -5,10 +5,10 @@
 #include "segel.h"
 #include "request.h"
 
-void requestStatistics(char* buf, int fd, double a, double dma, int t_id, int req, int req_s, int req_d, int is_dyn)
+void requestStatistics(char* buf, int fd, struct timeval a, struct timeval dma, int t_id, int req, int req_s, int req_d, int is_dyn)
 {
-   sprintf(buf, "%sStat-Req-Arrival:: %lf\r\n", buf, a);
-   sprintf(buf, "%sStat-Req-Dispatch:: %lf\r\n", buf, dma);
+   sprintf(buf, "%sStat-Req-Arrival:: %lu.%06lu\r\n", buf, a.tv_sec, a.tv_usec);
+   sprintf(buf, "%sStat-Req-Dispatch:: %lu.%06lu\r\n", buf, dma.tv_sec, dma.tv_usec);
    sprintf(buf, "%sStat-Thread-Id:: %d\r\n", buf, t_id);
    sprintf(buf, "%sStat-Thread-Count:: %d\r\n", buf, req);
    sprintf(buf, "%sStat-Thread-Static:: %d\r\n", buf, req_s);
@@ -22,7 +22,7 @@ void requestStatistics(char* buf, int fd, double a, double dma, int t_id, int re
 
 // requestError(      fd,    filename,        "404",    "Not found", "OS-HW3 Server could not find this file");
 void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg, 
-                        double a, double dma, int t_id, int req, int req_s, int req_d)  
+                        struct timeval a, struct timeval dma, int t_id, int req, int req_s, int req_d)  
 {
    char buf[MAXLINE], body[MAXBUF];
 
@@ -116,7 +116,7 @@ void requestGetFiletype(char *filename, char *filetype)
 }
 
 void requestServeDynamic(int fd, char *filename, char *cgiargs, 
-                        double a, double dma, int t_id, int req, int req_s, int req_d) 
+                        struct timeval a, struct timeval dma, int t_id, int req, int req_s, int req_d) 
 {
    char buf[MAXLINE], *emptylist[] = {NULL};
 
@@ -127,19 +127,20 @@ void requestServeDynamic(int fd, char *filename, char *cgiargs,
 
    requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d, 1);
    
-   if (Fork() == 0) {
+   pid_t forked_pid = Fork();
+   if (forked_pid == 0) {
       /* Child process */
       Setenv("QUERY_STRING", cgiargs, 1);
       /* When the CGI process writes to stdout, it will instead go to the socket */
       Dup2(fd, STDOUT_FILENO);
       Execve(filename, emptylist, environ);
    }
-   Wait(NULL);
+   WaitPid(forked_pid, NULL, 0);
 }
 
 
 void requestServeStatic(int fd, char *filename, int filesize, 
-                        double a, double dma, int t_id, int req, int req_s, int req_d) 
+                        struct timeval a, struct timeval dma, int t_id, int req, int req_s, int req_d) 
 {
    int srcfd;
    char *srcp, filetype[MAXLINE], buf[MAXBUF];
@@ -154,7 +155,7 @@ void requestServeStatic(int fd, char *filename, int filesize,
    Close(srcfd);
 
    // put together response
-   sprintf(buf, "%sHTTP/1.0 200 OK\r\n", buf);
+   sprintf(buf, "HTTP/1.0 200 OK\r\n");
    sprintf(buf, "%sServer: OS-HW3 Web Server\r\n", buf);
    sprintf(buf, "%sContent-Length: %d\r\n", buf, filesize);
    sprintf(buf, "%sContent-Type: %s\r\n", buf, filetype);
@@ -169,7 +170,7 @@ void requestServeStatic(int fd, char *filename, int filesize,
 
 
 // handle a request
-int requestHandle(int fd, double a, double dma, int t_id, int req, int req_s, int req_d)
+int requestHandle(int fd, struct timeval a, struct timeval dma, int t_id, int req, int req_s, int req_d)
 {
 
    int is_static;
@@ -223,5 +224,3 @@ int requestHandle(int fd, double a, double dma, int t_id, int req, int req_s, in
       return DYN_REQ;
    }
 }
-
-
