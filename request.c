@@ -5,7 +5,7 @@
 #include "segel.h"
 #include "request.h"
 
-void requestStatistics(char* buf, int fd, double a, double dma, int t_id, int req, int req_s, int req_d)
+void requestStatistics(char* buf, int fd, double a, double dma, int t_id, int req, int req_s, int req_d, int is_dyn)
 {
    sprintf(buf, "%sStat-Req-Arrival:: %lf\r\n", buf, a);
    sprintf(buf, "%sStat-Req-Dispatch:: %lf\r\n", buf, dma);
@@ -13,6 +13,9 @@ void requestStatistics(char* buf, int fd, double a, double dma, int t_id, int re
    sprintf(buf, "%sStat-Thread-Count:: %d\r\n", buf, req);
    sprintf(buf, "%sStat-Thread-Static:: %d\r\n", buf, req_s);
    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n", buf, req_d);
+
+   if (is_dyn != 1)
+       sprintf(buf, "%s\r\n", buf);
 
    Rio_writen(fd, buf, strlen(buf));
 }
@@ -39,7 +42,7 @@ void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longm
 
    printf("%s", buf);
 
-   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d);
+   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d, 0);
    
    // Write out the content
    Rio_writen(fd, body, strlen(body));
@@ -122,7 +125,7 @@ void requestServeDynamic(int fd, char *filename, char *cgiargs,
    sprintf(buf, "HTTP/1.0 200 OK\r\n");
    sprintf(buf, "%sServer: OS-HW3 Web Server\r\n", buf);
 
-   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d);
+   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d, 1);
    
    if (Fork() == 0) {
       /* Child process */
@@ -156,7 +159,7 @@ void requestServeStatic(int fd, char *filename, int filesize,
    sprintf(buf, "%sContent-Length: %d\r\n", buf, filesize);
    sprintf(buf, "%sContent-Type: %s\r\n", buf, filetype);
 
-   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d);
+   requestStatistics(buf, fd, a, dma, t_id, req, req_s, req_d, 0);
 
    //  Writes out to the client socket the memory-mapped file 
    Rio_writen(fd, srcp, filesize);
