@@ -6,20 +6,23 @@ Queue init_queue()
     Queue init_q = (Queue) malloc(sizeof(*init_q));
     if(init_q == NULL) exit(1); //TODO
     init_q->process_fd = -1;
-    init_q->arrival = init_q->dispatch = 0;
+    //just something to fill arrival..
+    gettimeofday(&init_q->arrival, NULL);
     init_q->next = NULL;
     //^^ That's a dummy 'node'
     return init_q;
 }
-void push_queue(Queue q, int p_fd, double arrival, double dispatch)
+void push_queue(Queue q, int p_fd, struct timeval arrival)
 {
     Queue new_q = (Queue) malloc(sizeof(*new_q));
     if(new_q == NULL) exit(1); //TODO
     while(q->next != NULL) { q = q->next; }
     new_q->next = NULL;
     new_q->process_fd = p_fd;
-    new_q->arrival = arrival;
-    new_q->dispatch = dispatch;
+
+    new_q->arrival.tv_sec = arrival.tv_sec;
+    new_q->arrival.tv_usec = arrival.tv_usec;
+
     q->next = new_q;
 }
 
@@ -74,11 +77,11 @@ int* get_fds_queue(Queue q)
 }
 
 
-double find_arrival_queue(Queue q, int p_fd)
+struct timeval find_arrival_queue(Queue q, int p_fd)
 {
     while(q->next != NULL && q->next->process_fd != p_fd)
     { q = q->next; }
-    if(q->next == NULL) return -1;
+    //we're asserting the q isn't empty
     return q->next->arrival; 
 }
 
