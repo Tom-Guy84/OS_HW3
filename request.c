@@ -12,7 +12,7 @@ void requestStatistics(char* buf, int fd, double a, double dma, int t_id, int re
    sprintf(buf, "%sStat-Thread-Id:: %d\r\n", buf, t_id);
    sprintf(buf, "%sStat-Thread-Count:: %d\r\n", buf, req);
    sprintf(buf, "%sStat-Thread-Static:: %d\r\n", buf, req_s);
-   sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n", buf, req_d);
+   sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n", buf, req_d);
 
    Rio_writen(fd, buf, strlen(buf));
 }
